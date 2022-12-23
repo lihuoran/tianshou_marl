@@ -17,7 +17,7 @@ class SimpleSimulator(Simulator[Tuple[int, int, int], np.ndarray, int]):
         assert 0 <= self.k < self.n
 
     def _get_states(self) -> np.ndarray:
-        onehot = np.zeros(self.n, dtype=float)
+        onehot = np.zeros(self.n, dtype=np.float32)
         onehot[self.k] = 1.0
         return np.repeat(np.expand_dims(onehot, 0), self.agent_num, axis=0)
 

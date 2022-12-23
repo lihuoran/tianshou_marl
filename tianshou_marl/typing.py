@@ -8,4 +8,4 @@ ActionType = TypeVar("ActionType")
 ObservationType = TypeVar("ObservationType")
 PolicyActionType = TypeVar("PolicyActionType")
 
-EnvStepOutput = Tuple[np.ndarray, bool, dict]
+EnvStepOutput = Tuple[np.ndarray, bool, np.ndarray, dict]

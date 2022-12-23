@@ -4,8 +4,10 @@ from typing import Any, Callable, Generator, Generic, Iterable, Tuple
 
 import numpy as np
 
+from tianshou_marl.exception import SeedExhausted
 from tianshou_marl.interpreter.action_interpreter import ActionInterpreter
 from tianshou_marl.interpreter.state_interpreter import StateInterpreter
+from tianshou_marl.reward import BaseReward
 from tianshou_marl.typing import ActionType, InitialStateType, ObservationType, PolicyActionType, StateType
 
 
@@ -35,16 +37,19 @@ class Env(Generic[InitialStateType, StateType, ActionType, ObservationType, Poli
         self,
         simulator_fn: Callable[[InitialStateType], Simulator],
         seed_iterator: Generator | Iterable,
+        reward: BaseReward,
         state_interpreter: StateInterpreter = None,
         action_interpreter: ActionInterpreter = None,
-        reward_fn=None,
     ) -> None:
         self._simulator_fn = simulator_fn
+        self._reward = reward
         self._state_interpreter = state_interpreter
         self._action_interpreter = action_interpreter
         self._seed_iterator = _convert_to_generator(seed_iterator)
 
         self._simulator: Simulator | None = None
+        self._last_states: np.ndarray[StateType] | None = None
+        self._last_done: bool = False
 
     @property
     def simulator(self) -> Simulator:
@@ -55,7 +60,7 @@ class Env(Generic[InitialStateType, StateType, ActionType, ObservationType, Poli
     def agent_num(self) -> int:
         return self.simulator.agent_num
 
-    def _reset(self) -> Tuple[np.ndarray[ObservationType], bool, dict]:  # TODO: add reward
+    def _reset(self) -> Tuple[np.ndarray[ObservationType], bool, np.ndarray, dict]:
         assert self._seed_iterator is not None
 
         try:
@@ -63,21 +68,32 @@ class Env(Generic[InitialStateType, StateType, ActionType, ObservationType, Poli
             self._simulator = self._simulator_fn(seed)
             states, done = self.simulator.initialize()
             observations = states if self._state_interpreter is None else self._state_interpreter(states)
-            return observations, done, {}
+            self._last_states = states
+            self._last_done = done
+            return observations, done, np.zeros(self.agent_num), {}
         except StopIteration:
             self._seed_iterator = None
+            raise SeedExhausted
 
     def step(
         self,
         policy_actions: np.ndarray[PolicyActionType] | None,
-    ) -> Tuple[np.ndarray[ObservationType], bool, dict]:  # TODO: add reward
+    ) -> Tuple[np.ndarray[ObservationType], bool, np.ndarray, dict]:
+        assert self._seed_iterator is not None, "TODO"
+
         if policy_actions is None:
             return self._reset()
         else:
             actions = policy_actions if self._action_interpreter is None else self._action_interpreter(policy_actions)
+            rewards = np.array([
+                self._reward.get_reward(state, action, self._last_done)
+                for state, action in zip(self._last_states, actions)
+            ])
             states, done = self.simulator.step_wrapper(actions)
             observations = states if self._state_interpreter is None else self._state_interpreter(states)
-            return observations, done, {}
+            self._last_states = states
+            self._last_done = done
+            return observations, done, rewards, {}
 
 
 class Simulator(Generic[InitialStateType, StateType, ActionType]):

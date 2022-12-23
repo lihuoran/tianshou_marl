@@ -21,7 +21,10 @@ class BaseEnvWorker(object):
         raise NotImplementedError
 
     def recv(self) -> EnvStepOutput:
-        raise NotImplementedError
+        assert self._last_result is not None, \
+            "You must wait `send()` to finish before calling `recv()`."
+
+        return self._last_result
 
     def reset(self) -> None:
         raise NotImplementedError
@@ -40,12 +43,6 @@ class DummyEnvWorker(BaseEnvWorker):
 
     def send(self, action: np.ndarray) -> None:
         self._last_result = self._env.step(action)
-
-    def recv(self) -> EnvStepOutput:
-        assert self._last_result is not None, \
-            "You must wait `send()` to finish before calling `recv()`."
-
-        return self._last_result
 
     def reset(self) -> None:
         self._last_result = self._env.step(None)
