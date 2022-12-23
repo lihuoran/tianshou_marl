@@ -10,10 +10,12 @@ from tianshou_marl.utils.progress import Progress
 
 
 def _should_terminate(n_step: Optional[int], n_episode: Optional[int], step_count: int, episode_count: int) -> bool:
-    return any([
-        n_step is not None and step_count >= n_step,
-        n_episode is not None and episode_count >= n_episode,
-    ])
+    return any(
+        [
+            n_step is not None and step_count >= n_step,
+            n_episode is not None and episode_count >= n_episode,
+        ],
+    )
 
 
 class Collector(object):
@@ -58,10 +60,7 @@ class Collector(object):
                 pool[i].append((observations[i], done, False, done, rewards[i]))
             env_done.append(done)
 
-        batches = [
-            Batch(**dict(zip(["obs_next", "done", "truncated", "terminated", "rew"], zip(*e))))
-            for e in pool
-        ]
+        batches = [Batch(**dict(zip(["obs_next", "done", "truncated", "terminated", "rew"], zip(*e)))) for e in pool]
 
         assert all(len(batch) == len(self._venv.alive_env_idx) for batch in batches)
         for new_batch, old_batch in zip(batches, self._data):

@@ -3,6 +3,7 @@ from typing import Generic
 import numpy as np
 
 from tianshou_marl.typing import ObservationType, StateType
+
 from .base import Interpreter
 
 

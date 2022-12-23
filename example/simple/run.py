@@ -1,10 +1,10 @@
 import numpy as np
 from gym import spaces
+from simulator import SimpleSimulator
 from tianshou.data import VectorReplayBuffer
 from tianshou.policy import BasePolicy
 from torch import nn
 
-from simulator import SimpleSimulator
 from tianshou_marl.env.env import Env
 from tianshou_marl.env.venv import DummyVectorEnv
 from tianshou_marl.policy.ppo import PPO
@@ -52,7 +52,7 @@ if __name__ == "__main__":
                 simulator_fn=lambda init_state: SimpleSimulator(init_state=init_state, agent_num=3),
                 reward=SimpleReward(),
                 seed_iterator=[(N, 3, 9), (N, 4, 9)],
-            )
+            ),
         ],
         agent_num=NUM_POLICY,
     )

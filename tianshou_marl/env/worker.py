@@ -4,8 +4,8 @@ from typing import Callable
 
 import numpy as np
 
-from .env import Env
 from ..typing import EnvStepOutput
+from .env import Env
 
 
 class BaseEnvWorker(object):
@@ -21,8 +21,7 @@ class BaseEnvWorker(object):
         raise NotImplementedError
 
     def recv(self) -> EnvStepOutput:
-        assert self._last_result is not None, \
-            "You must wait `send()` to finish before calling `recv()`."
+        assert self._last_result is not None, "You must wait `send()` to finish before calling `recv()`."
 
         return self._last_result
 

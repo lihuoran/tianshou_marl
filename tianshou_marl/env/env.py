@@ -27,8 +27,9 @@ def _create_agents(agents: list | None, agent_num: int | None) -> list:
         assert agent_num is not None and agent_num > 0, f"Invalid agent number {agent_num}"
         return list(range(agent_num))
     else:
-        assert agent_num == len(agents), \
-            f"The length of agents is inconsistent with agent_num ({len(agents)} v.s. {agent_num})."
+        assert agent_num == len(
+            agents,
+        ), f"The length of agents is inconsistent with agent_num ({len(agents)} v.s. {agent_num})."
         return agents
 
 
@@ -85,10 +86,12 @@ class Env(Generic[InitialStateType, StateType, ActionType, ObservationType, Poli
             return self._reset()
         else:
             actions = policy_actions if self._action_interpreter is None else self._action_interpreter(policy_actions)
-            rewards = np.array([
-                self._reward.get_reward(state, action, self._last_done)
-                for state, action in zip(self._last_states, actions)
-            ])
+            rewards = np.array(
+                [
+                    self._reward.get_reward(state, action, self._last_done)
+                    for state, action in zip(self._last_states, actions)
+                ],
+            )
             states, done = self.simulator.step_wrapper(actions)
             observations = states if self._state_interpreter is None else self._state_interpreter(states)
             self._last_states = states

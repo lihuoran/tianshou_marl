@@ -98,7 +98,7 @@ setup(
     ],
     keywords="TODO",
     packages=find_packages(
-        exclude=["test", "test.*", "examples", "examples.*", "docs", "docs.*"]
+        exclude=["test", "test.*", "examples", "examples.*", "docs", "docs.*"],
     ),
     install_requires=get_install_requires(),
     extras_require=get_extras_require(),

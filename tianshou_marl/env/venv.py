@@ -4,9 +4,9 @@ from typing import Callable, List, Optional, Type
 
 import numpy as np
 
+from ..exception import SeedExhausted
 from .env import Env
 from .worker import BaseEnvWorker, DummyEnvWorker
-from ..exception import SeedExhausted
 
 
 class BaseVectorEnv(object):
@@ -47,8 +47,10 @@ class BaseVectorEnv(object):
         return np.array([self._workers[idx].recv() for idx in worker_indexes if self._alive_flag[idx]], dtype=object)
 
     def step(self, actions: np.ndarray) -> np.ndarray:
-        assert actions.shape == (len(self.alive_env_idx), self._agent_num), \
-            f"Expect action shape: {(len(self), self._agent_num)}, got {actions.shape}"
+        assert actions.shape == (
+            len(self.alive_env_idx),
+            self._agent_num,
+        ), f"Expect action shape: {(len(self), self._agent_num)}, got {actions.shape}"
 
         for i, (action, worker) in enumerate(zip(actions, self._workers)):
             if self._alive_flag[i]:
