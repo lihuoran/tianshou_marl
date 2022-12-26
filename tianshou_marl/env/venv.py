@@ -18,12 +18,18 @@ class BaseVectorEnv(object):
         wait_num: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> None:
-        self._workers = [worker_cls(env_fn) for env_fn in env_fns]
-        self._alive_flag = [True] * len(self._workers)
+        self._worker_cls = worker_cls
+        self._env_fns = env_fns
         self._agent_num = agent_num
+
+        self.restart()
 
     def __len__(self) -> int:
         return len(self._workers)
+
+    def restart(self) -> None:
+        self._workers = [self._worker_cls(env_fn) for env_fn in self._env_fns]
+        self._alive_flag = [True] * len(self._workers)
 
     @property
     def alive_env_idx(self) -> np.ndarray:

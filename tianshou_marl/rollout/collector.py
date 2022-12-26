@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -27,10 +27,22 @@ class Collector(object):
     ) -> None:
         self._venv = venv
         self._policies = policies
-        self._buffers = self._create_buffers(buffer)
+        self.buffers = self._create_buffers(buffer)
 
         self._init_data()
+        self.restart_env()
+
+    @property
+    def n_policy(self) -> int:
+        return len(self._policies)
+
+    def restart_env(self) -> None:
+        self._venv.restart()
         self._collect_step_info(self._venv.reset_all())
+
+    def reset_buffers(self, keep_statistics: bool = False) -> None:
+        for buffer in self.buffers:
+            buffer.reset(keep_statistics=keep_statistics)
 
     def _init_data(self) -> None:
         self._data = [
@@ -44,7 +56,7 @@ class Collector(object):
                 rew={},
                 info={},
             )
-            for _ in range(len(self._policies))
+            for _ in range(self.n_policy)
         ]
 
     def _collect_step_info(self, step_info: np.ndarray) -> np.ndarray:
@@ -52,11 +64,11 @@ class Collector(object):
             self._init_data()
             return np.array([])
 
-        pool = [[] for _ in range(len(self._policies))]
+        pool = [[] for _ in range(self.n_policy)]
         env_done = []
         for observations, done, rewards, info_dict in step_info:  # Iterate each worker
-            assert observations.shape[0] == len(self._policies)
-            for i in range(len(self._policies)):
+            assert observations.shape[0] == self.n_policy
+            for i in range(self.n_policy):
                 pool[i].append((observations[i], done, False, done, rewards[i]))
             env_done.append(done)
 
@@ -70,7 +82,7 @@ class Collector(object):
 
     def _create_buffers(self, buffer: Optional[ReplayBuffer]) -> List[ReplayBuffer]:
         if buffer is None:
-            buffer = VectorReplayBuffer(len(self._venv), len(self._venv))
+            buffer = VectorReplayBuffer(10000, len(self._venv))  # TODO: remove constant
         elif isinstance(buffer, ReplayBufferManager):
             assert buffer.buffer_num >= len(self._venv)
             if isinstance(buffer, CachedReplayBuffer):
@@ -79,7 +91,7 @@ class Collector(object):
             raise ValueError(f"Unsupported buffer type: {type(buffer)}.")
 
         buffers = []
-        for _ in range(len(self._policies)):
+        for _ in range(self.n_policy):
             buffers.append(deepcopy(buffer))
         return buffers
 
@@ -89,13 +101,17 @@ class Collector(object):
         n_episode: Optional[int] = None,
         random: bool = False,
         no_grad: bool = True,
-    ) -> None:
+        desc: str = "",
+    ) -> Dict[str, Any]:
         assert n_step is not None or n_episode is not None, "Please specify at least one (either n_step or n_episode)."
         assert n_step is None or n_episode is None, "n_step and n_episode cannot be specified together."
+
+        episode_rews = [[] for _ in range(self.n_policy)]
 
         progress_kwargs = {
             "total": n_step if n_step is not None else n_episode,
             "unit": "step" if n_step is not None else "episode",
+            "desc": desc,
         }
         with Progress(**progress_kwargs) as progress:
             while not progress.should_terminate() and len(self._venv.alive_env_idx) > 0:
@@ -114,8 +130,10 @@ class Collector(object):
                 actions = np.stack([batch.act for batch in self._data]).transpose()
                 env_done = self._collect_step_info(self._venv.step(actions))
 
-                for data, buffer in zip(self._data, self._buffers):
-                    ptr, ep_rew, ep_len, ep_idx = buffer.add(data, buffer_ids=self._venv.alive_env_idx)
+                info_pool = []
+                for data, buffer in zip(self._data, self.buffers):
+                    # ptr, ep_rew, ep_len, ep_idx
+                    info_pool.append(buffer.add(data, buffer_ids=self._venv.alive_env_idx))
 
                 # Update progress
                 if n_step is not None:
@@ -125,6 +143,19 @@ class Collector(object):
                     if n_episode is not None:
                         progress.update(env_done.sum())
 
-                    terminated_env_idx = self._venv.alive_env_idx[np.where(env_done)[0]]
+                    idx = np.where(env_done)[0]
+                    for i in range(self.n_policy):
+                        episode_rews[i].append(info_pool[i][1])
+
+                    terminated_env_idx = self._venv.alive_env_idx[idx]
                     self._venv.reset_workers(terminated_env_idx)
                     self._collect_step_info(self._venv.recv_all())
+
+        try:
+            rews = np.array([np.concatenate(e) for e in episode_rews])
+        except ValueError:
+            rews = np.array(episode_rews)
+
+        return {
+            "rews": rews
+        }

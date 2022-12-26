@@ -65,12 +65,15 @@ class Env(Generic[InitialStateType, StateType, ActionType, ObservationType, Poli
         assert self._seed_iterator is not None
 
         try:
-            seed = next(self._seed_iterator)
-            self._simulator = self._simulator_fn(seed)
-            states, done = self.simulator.initialize()
-            observations = states if self._state_interpreter is None else self._state_interpreter(states)
-            self._last_states = states
-            self._last_done = done
+            while True:
+                seed = next(self._seed_iterator)
+                self._simulator = self._simulator_fn(seed)
+                states, done = self.simulator.initialize()
+                observations = self._state_interpreter(states) if self._state_interpreter is not None else states
+                self._last_states = states
+                self._last_done = done
+                if not done:
+                    break
             return observations, done, np.zeros(self.agent_num), {}
         except StopIteration:
             self._seed_iterator = None
@@ -85,7 +88,9 @@ class Env(Generic[InitialStateType, StateType, ActionType, ObservationType, Poli
         if policy_actions is None:
             return self._reset()
         else:
-            actions = policy_actions if self._action_interpreter is None else self._action_interpreter(policy_actions)
+            actions = (
+                self._action_interpreter(policy_actions) if self._action_interpreter is not None else policy_actions
+            )
             rewards = np.array(
                 [
                     self._reward.get_reward(state, action, self._last_done)
